@@ -21,7 +21,14 @@ rm result*.txt
 # called with ${strat}, ${workers}, ${hllen}, ${rdlen}
 function mytest() {
 
-	limit=8000
+	limit=200000
+
+	if [[ ${strat} != 'big' ]] && [[ ${workers} -eq 5 ]]; then
+		let limit*=2
+	fi
+	if [[ ${strat} != 'big' ]] && [[ ${workers} -eq 8 ]]; then
+		let limit*=4
+	fi
 
 	if [[ ${hllen} -eq 15 ]]; then
 		let limit/=2
@@ -30,11 +37,10 @@ function mytest() {
 		let limit/=4
 	fi
 
-	if [[ ${rdlen} -eq 2 ]]; then
+	if [[ ${rdlen} -eq 200 ]]; then
 		let limit/=2
 	fi
-
-	if [[ ${rdlen} -eq 5 ]]; then
+	if [[ ${rdlen} -eq 500 ]]; then
 		let limit/=4
 	fi
 
@@ -50,23 +56,23 @@ function mytest() {
 	sudo rmmod rcuht_test
 
 	tail /var/log/syslog -n40 > "log${strat}.txt"
-	echo "${strat}  ${workers}  ${hllen}  ${rdlen}" >> "result${testrun}.txt"
-	awk "/TEST No./ { print ${limit} / \$NF * 1000 }" "log${strat}.txt"  >> "result${testrun}.txt"
+	echo "${strat}  ${workers}  ${hllen}  ${rdlen} ${limit}" >> "result${testrun}.txt"
+	awk "/TEST No./ { print \$NF * 1000 }" "log${strat}.txt"  >> "result${testrun}.txt"
 
 }
 
 for testrun in 1 2 3; do
-
+echo "start testrun${testrun}"
 for strat in big rcu callrcu; do
-	for workers in 2 6 10; do
+	for workers in 2 5 8; do
 		for hllen in 14 15 16; do
-			for rdlen in 0 2 5; do
+			for rdlen in 0 200 500; do
 				mytest
 			done
 		done
 	done
 done
-
+echo "finish testrun${testrun}"
 done
 
 

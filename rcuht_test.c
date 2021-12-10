@@ -27,7 +27,6 @@ typedef struct rcut_object {
 	// use o_id % NUM_BUCKETS for hash value
 	struct hlist_node o_node;
 	spinlock_t o_lock;
-	int o_invalid;
 	struct rcu_head o_rh;
 
 	char o_data[NUM_DATA];
@@ -60,15 +59,15 @@ typedef struct rcut_funcs {
 	int (*write)(void *);
 } rcut_funcs_t;
 
-static int input_rdlen = 0;
+static int input_rdlen = 0; // now in usecs
 module_param(input_rdlen, int, S_IRUSR);
 MODULE_PARM_DESC(input_rdlen, "read sleep delay");
 
 static void rwobject(rcut_object_t * objp) {
 #ifdef ENABLE_LOG
-	printk(KERN_INFO "rwobject %d\n", sum);
+	printk(KERN_INFO "rwobject\n");
 #endif
-	mdelay(input_rdlen);
+	udelay(input_rdlen);
 }
 
 static rcut_object_t * lookup(uint32_t lookupid)
@@ -216,6 +215,8 @@ static int insert_rcu(void * data)
 		return 0;
 	}
 	objp = kmalloc(sizeof(rcut_object_t), GFP_KERNEL);
+	spin_lock_init(&objp->o_lock);
+	rcu_head_init(&objp->o_rh);
 	objp->o_id = param->p_id;
 	memcpy(objp->o_data, param->p_data, sizeof(objp->o_data));
 	objp->o_data[NUM_DATA-1] = 0;
@@ -344,50 +345,68 @@ static rcut_funcs_t * funcs = &rculock;
 // manager thread
 /////////////////////////////////////////////////////////
 
-static struct semaphore manager_sem;
-
 typedef struct rcut_mgrexec {
 	rcut_funcs_t funcs;
 	rcut_param_t param;
 } rcut_mgrexec_t;
+
+static volatile int finished_cnt;
+static spinlock_t finished_cnt_lock;
+static struct task_struct * manager_thread;
 
 static int manager_entry(void *data) 
 {
 	unsigned char n;
 	uint32_t id;
 	rcut_param_t param;
-	uint32_t * thread_id;
+	uint32_t limit;
+	uint32_t * retval;
+	unsigned long start, end;
 
-	thread_id = (uint32_t *) data;  
-	get_random_bytes(&n, 1);
-	id = 0;
-	get_random_bytes(&id, 4);
-	id &= (1 << input_hllen) - 1;
-	if (n <= FUNC_PROB[0]) {
-		param.p_id = id;
-		strcpy(param.p_data, "p_data_inserted");
-		funcs->insert(&param);
-		
-	} else if (n <= FUNC_PROB[1]) {
-		param.p_id = id;
-		funcs->remove(&param);
+	limit = *((uint32_t *) data);
 
-	} else if (n <= FUNC_PROB[2]) {
-		param.p_id = id;
-		funcs->read(&param);
+	printk(KERN_INFO "manager entry started with limit %u\n", limit);
 
-	} else if (n <= FUNC_PROB[3]) {
-		printk(KERN_ALERT "FATAL\n");
-
-	} else {
-		printk(KERN_ALERT "FATAL\n");
-
+	++limit;
+	start = jiffies;
+	while (--limit > 0) {
+		get_random_bytes(&n, 1);
+		id = 0;
+		get_random_bytes(&id, 4);
+		id &= (1 << input_hllen) - 1;
+		if (n <= FUNC_PROB[0]) {
+			param.p_id = id;
+			strcpy(param.p_data, "p_data_inserted");
+			funcs->insert(&param);
+			
+		} else if (n <= FUNC_PROB[1]) {
+			param.p_id = id;
+			funcs->remove(&param);
+	
+		} else if (n <= FUNC_PROB[2]) {
+			param.p_id = id;
+			funcs->read(&param);
+	
+		} else if (n <= FUNC_PROB[3]) {
+			printk(KERN_ALERT "FATAL\n");
+	
+		} else {
+			printk(KERN_ALERT "FATAL\n");
+	
+		}
 	}
-#ifdef ENABLE_LOG
-	printk(KERN_INFO "EXIT %d\n", *thread_id);
-#endif
-	kfree(thread_id);
-	up(&manager_sem);
+	end = jiffies;
+
+	retval = (uint32_t *) data;
+	*retval = end - start;
+
+	printk(KERN_INFO "manager entry begin exit");
+	spin_lock(&finished_cnt_lock);
+	++finished_cnt;
+	spin_unlock(&finished_cnt_lock);
+	wake_up_process(manager_thread);
+	printk(KERN_INFO "manager entry exited");
+
 	do_exit(0);
 }
 
@@ -396,54 +415,69 @@ static int manager(unsigned workers, uint32_t limit) {
 	// maintain limit number of worker, with certain prob of spawn 
 	
 	rcut_param_t param;
-	struct task_struct * w;
-	uint32_t thread_id;
+	struct task_struct ** w;
 	uint32_t * data;
-	unsigned long start, end;
+	uint64_t sum;
+	int i;
 
-	sema_init(&manager_sem, workers);
+	spin_lock_init(&finished_cnt_lock);
 
 	// populate every even position from 0 to ID_MAX-1
 	strcpy(param.p_data, "p_data_original");
 	for (param.p_id = 0; param.p_id < ID_MAX; param.p_id += 2) 
 		(nolock.insert)(&param);
-	
+
 	if (limit <= 0) limit = 1;
 	if (workers <= 0) workers = 1;
 
-	// current strategy options:
-	// 1. use a semaphore with blocking
-	// 2. use a semaphore without blocking
-	// 3. CAS
-	// 4. wait queue
-	
+	// initialize the worker pool, free w and data later
+	w = kmalloc(sizeof(struct task_struct) * workers, GFP_KERNEL);
+	data = kmalloc(sizeof(uint32_t) * workers, GFP_KERNEL);
+	for (i = 0; i < workers; ++i) {
+		data[i] = limit / workers;
+		w[i] = kthread_create(manager_entry, &data[i], "mentry");
+	}
+
 	printk(KERN_INFO "==========================\n"
 			 "=======START TEST=========\n"
 			 "==========================\n");
-	
-	thread_id = 0;
-	start = jiffies;
-	while (1) {
-		down(&manager_sem);
-		// this means that at least limit number of threads finished
-		if (thread_id >= limit + workers) 
-			break;
-		data = kmalloc(sizeof(uint32_t), GFP_KERNEL);
-		*data = thread_id;
-		++thread_id;
-#ifdef ENABLE_LOG
-		printk(KERN_INFO "ENTER %d\n", *data);
-#endif
-		w = kthread_run(manager_entry, data, "mentry");			
+
+	finished_cnt = 0;
+	manager_thread = current;
+	set_current_state(TASK_INTERRUPTIBLE);
+
+	for (i = 0; i < workers; ++i) {
+		wake_up_process(w[i]);
 	}
-	end = jiffies;
+	
+	// https://www.linuxjournal.com/article/8144
+	spin_lock(&finished_cnt_lock);
+	while (finished_cnt != workers) {
+		printk(KERN_INFO "manager: finished_cnt = %u\n", finished_cnt);
+		spin_unlock(&finished_cnt_lock);
+		schedule();
+		set_current_state(TASK_INTERRUPTIBLE);
+		spin_lock(&finished_cnt_lock);
+	}
+	set_current_state(TASK_RUNNING);
+	spin_unlock(&finished_cnt_lock);
+
+	// all threads are finished, the time they spent is on data, take the average
+	sum = 0;
+	for (i = 0; i < workers; ++i) {
+		sum += data[i];
+	}
+	sum /= workers;
+
 	printk(KERN_INFO "==========================\n"
 			 "=======END TEST===========\n");
-	printk(KERN_ALERT "  TOTAL TIME : %d\n", jiffies_to_msecs(end - start));
+	printk(KERN_ALERT "  TOTAL TIME : %d\n", jiffies_to_msecs(sum));
 	printk(KERN_INFO "==========================\n");
 
+	kfree(data);
+	kfree(w);
 	
-	return jiffies_to_msecs(end - start);
+	return jiffies_to_msecs(sum);
 }
 
 ///////////////////////////////////////////////////////////////
@@ -461,7 +495,7 @@ MODULE_PARM_DESC(input_limit, "the number of total workers completed before stop
 module_param(input_strategy, charp, S_IRUSR);
 MODULE_PARM_DESC(input_strategy, "the locking strategy: big or rcu or callrcu");
 
-#define TEST_NUM 6
+#define TEST_NUM 5
 
 static int __init test_init(void)
 {
@@ -491,7 +525,6 @@ static int __init test_init(void)
 
 	for (i = 0; i < TEST_NUM; ++i) {
 		results[i] = manager(input_workers, input_limit);
-		msleep(500);
 	}
 
 	for (i = 0; i < TEST_NUM; ++i) {

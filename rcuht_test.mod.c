@@ -28,24 +28,23 @@ __used __section(__versions) = {
 	{ 0x5ab5b891, "param_ops_int" },
 	{ 0xb0ebce5e, "param_ops_long" },
 	{ 0xde4c1a24, "param_ops_charp" },
-	{ 0xf9a482f9, "msleep" },
 	{ 0x977f511b, "__mutex_init" },
 	{ 0xe2d5255a, "strcmp" },
-	{ 0x36e58bcd, "pv_ops" },
-	{ 0xdbf17652, "_raw_spin_lock" },
-	{ 0xeae3dfd6, "__const_udelay" },
-	{ 0x952664c5, "do_exit" },
-	{ 0xcf2a6966, "up" },
-	{ 0x79aa04a2, "get_random_bytes" },
-	{ 0xdecd0b29, "__stack_chk_fail" },
-	{ 0x37befc70, "jiffies_to_msecs" },
-	{ 0x64c17a3f, "wake_up_process" },
-	{ 0xe8bc695c, "kthread_create_on_node" },
+	{ 0x9e7d6bd0, "__udelay" },
 	{ 0xf5cb25c8, "kmem_cache_alloc_trace" },
 	{ 0x35216b26, "kmalloc_caches" },
-	{ 0x6626afca, "down" },
+	{ 0x952664c5, "do_exit" },
+	{ 0x79aa04a2, "get_random_bytes" },
 	{ 0x15ba50a6, "jiffies" },
+	{ 0xdecd0b29, "__stack_chk_fail" },
+	{ 0x37befc70, "jiffies_to_msecs" },
+	{ 0x1000e51, "schedule" },
+	{ 0xdbf17652, "_raw_spin_lock" },
+	{ 0x64c17a3f, "wake_up_process" },
+	{ 0x1b44c663, "current_task" },
 	{ 0xc5850110, "printk" },
+	{ 0xe8bc695c, "kthread_create_on_node" },
+	{ 0xeb233a45, "__kmalloc" },
 	{ 0x2ea2c95c, "__x86_indirect_thunk_rax" },
 	{ 0x6091797f, "synchronize_rcu" },
 	{ 0x19f462ab, "kfree_call_rcu" },
@@ -53,9 +52,10 @@ __used __section(__versions) = {
 	{ 0x2ab7989d, "mutex_lock" },
 	{ 0x37a0cba, "kfree" },
 	{ 0xbdfb6dbb, "__fentry__" },
+	{ 0x36e58bcd, "pv_ops" },
 };
 
 MODULE_INFO(depends, "");
 
 
-MODULE_INFO(srcversion, "B7E6FF043CA51EC97904CB7");
+MODULE_INFO(srcversion, "C0A1E9E865A2534E96E2625");

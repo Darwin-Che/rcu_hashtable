@@ -1,40 +1,40 @@
-Dec 10 06:04:42 czc kernel: [20944.782775] =======START TEST=========
-Dec 10 06:04:42 czc kernel: [20944.782775] ==========================
-Dec 10 06:04:44 czc kernel: [20946.102005] ==========================
-Dec 10 06:04:44 czc kernel: [20946.102005] =======END TEST===========
-Dec 10 06:04:44 czc kernel: [20946.102006]   TOTAL TIME : 1316
-Dec 10 06:04:44 czc kernel: [20946.102100] ==========================
-Dec 10 06:04:45 czc multipathd[828]: sda: add missing path
-Dec 10 06:04:45 czc multipathd[828]: sda: failed to get udev uid: Invalid argument
-Dec 10 06:04:45 czc multipathd[828]: sda: failed to get sysfs uid: Invalid argument
-Dec 10 06:04:45 czc multipathd[828]: sda: failed to get sgio uid: No such file or directory
-Dec 10 06:04:50 czc kernel: [20952.447093] ==========================
-Dec 10 06:04:50 czc kernel: [20952.447093] =======START TEST=========
-Dec 10 06:04:50 czc kernel: [20952.447093] ==========================
-Dec 10 06:04:50 czc multipathd[828]: sda: add missing path
-Dec 10 06:04:50 czc multipathd[828]: sda: failed to get udev uid: Invalid argument
-Dec 10 06:04:50 czc multipathd[828]: sda: failed to get sysfs uid: Invalid argument
-Dec 10 06:04:50 czc multipathd[828]: sda: failed to get sgio uid: No such file or directory
-Dec 10 06:04:51 czc kernel: [20953.734626] ==========================
-Dec 10 06:04:51 czc kernel: [20953.734626] =======END TEST===========
-Dec 10 06:04:51 czc kernel: [20953.734627]   TOTAL TIME : 1288
-Dec 10 06:04:51 czc kernel: [20953.734803] ==========================
-Dec 10 06:04:55 czc multipathd[828]: sda: add missing path
-Dec 10 06:04:55 czc multipathd[828]: sda: failed to get udev uid: Invalid argument
-Dec 10 06:04:55 czc multipathd[828]: sda: failed to get sysfs uid: Invalid argument
-Dec 10 06:04:55 czc multipathd[828]: sda: failed to get sgio uid: No such file or directory
-Dec 10 06:04:58 czc kernel: [20960.172522] ==========================
-Dec 10 06:04:58 czc kernel: [20960.172522] =======START TEST=========
-Dec 10 06:04:58 czc kernel: [20960.172522] ==========================
-Dec 10 06:04:59 czc kernel: [20961.486957] ==========================
-Dec 10 06:04:59 czc kernel: [20961.486957] =======END TEST===========
-Dec 10 06:04:59 czc kernel: [20961.486958]   TOTAL TIME : 1316
-Dec 10 06:04:59 czc kernel: [20961.487148] ==========================
-Dec 10 06:05:00 czc kernel: [20962.022862] TEST No. 0 : 1404
-Dec 10 06:05:00 czc kernel: [20962.022864] TEST No. 1 : 1420
-Dec 10 06:05:00 czc kernel: [20962.022866] TEST No. 2 : 1288
-Dec 10 06:05:00 czc kernel: [20962.022867] TEST No. 3 : 1316
-Dec 10 06:05:00 czc kernel: [20962.022867] TEST No. 4 : 1288
-Dec 10 06:05:00 czc kernel: [20962.022868] TEST No. 5 : 1316
-Dec 10 06:05:00 czc kernel: [20962.032468] ==============
-Dec 10 06:05:00 czc kernel: [20962.032468] TEST_EXIT
+Dec 10 20:59:11 czc kernel: [ 3707.334704]   TOTAL TIME : 17480
+Dec 10 20:59:11 czc kernel: [ 3707.334788] ==========================
+Dec 10 20:59:13 czc kernel: [ 3710.023567] ==========================
+Dec 10 20:59:13 czc kernel: [ 3710.023567] =======START TEST=========
+Dec 10 20:59:13 czc kernel: [ 3710.023567] ==========================
+Dec 10 20:59:13 czc kernel: [ 3710.023586] manager: finished_cnt = 0
+Dec 10 20:59:13 czc kernel: [ 3710.023647] manager entry started with limit 50000
+Dec 10 20:59:13 czc kernel: [ 3710.023689] manager entry started with limit 50000
+Dec 10 20:59:15 czc multipathd[826]: sda: add missing path
+Dec 10 20:59:15 czc multipathd[826]: sda: failed to get udev uid: Invalid argument
+Dec 10 20:59:15 czc multipathd[826]: sda: failed to get sysfs uid: Invalid argument
+Dec 10 20:59:15 czc multipathd[826]: sda: failed to get sgio uid: No such file or directory
+Dec 10 20:59:20 czc multipathd[826]: sda: add missing path
+Dec 10 20:59:20 czc multipathd[826]: sda: failed to get udev uid: Invalid argument
+Dec 10 20:59:20 czc multipathd[826]: sda: failed to get sysfs uid: Invalid argument
+Dec 10 20:59:20 czc multipathd[826]: sda: failed to get sgio uid: No such file or directory
+Dec 10 20:59:25 czc multipathd[826]: sda: add missing path
+Dec 10 20:59:25 czc multipathd[826]: sda: failed to get udev uid: Invalid argument
+Dec 10 20:59:25 czc multipathd[826]: sda: failed to get sysfs uid: Invalid argument
+Dec 10 20:59:25 czc multipathd[826]: sda: failed to get sgio uid: No such file or directory
+Dec 10 20:59:30 czc multipathd[826]: sda: add missing path
+Dec 10 20:59:30 czc multipathd[826]: sda: failed to get udev uid: Invalid argument
+Dec 10 20:59:30 czc multipathd[826]: sda: failed to get sysfs uid: Invalid argument
+Dec 10 20:59:30 czc multipathd[826]: sda: failed to get sgio uid: No such file or directory
+Dec 10 20:59:31 czc kernel: [ 3728.031752] manager entry begin exit
+Dec 10 20:59:31 czc kernel: [ 3728.031787] manager entry exited
+Dec 10 20:59:31 czc kernel: [ 3728.031857] manager: finished_cnt = 1
+Dec 10 20:59:32 czc kernel: [ 3728.150155] manager entry begin exit
+Dec 10 20:59:32 czc kernel: [ 3728.150166] manager entry exited
+Dec 10 20:59:32 czc kernel: [ 3728.150221] ==========================
+Dec 10 20:59:32 czc kernel: [ 3728.150221] =======END TEST===========
+Dec 10 20:59:32 czc kernel: [ 3728.150222]   TOTAL TIME : 18068
+Dec 10 20:59:32 czc kernel: [ 3728.150312] ==========================
+Dec 10 20:59:32 czc kernel: [ 3728.150314] TEST No. 0 : 13896
+Dec 10 20:59:32 czc kernel: [ 3728.150314] TEST No. 1 : 15796
+Dec 10 20:59:32 czc kernel: [ 3728.150314] TEST No. 2 : 16576
+Dec 10 20:59:32 czc kernel: [ 3728.150315] TEST No. 3 : 17480
+Dec 10 20:59:32 czc kernel: [ 3728.150315] TEST No. 4 : 18068
+Dec 10 20:59:32 czc kernel: [ 3728.156603] ==============
+Dec 10 20:59:32 czc kernel: [ 3728.156603] TEST_EXIT
