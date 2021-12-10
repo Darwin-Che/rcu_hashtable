@@ -12,6 +12,9 @@
 #include <linux/semaphore.h>
 #include <linux/jiffies.h>
 #include <linux/spinlock.h>
+#include <linux/version.h>
+#include <linux/tty.h>
+#include <linux/proc_fs.h>
 
 MODULE_LICENSE("GPL");
 
@@ -48,9 +51,18 @@ typedef struct rcut_funcs {
 } rcut_funcs_t;
 
 static const unsigned ID_MAX = 256;
-static const unsigned FUNC_PROB[] = {25, 50, 255, 255}; // <= the number will match the case
+static const unsigned FUNC_PROB[] = {0, 0, 255, 255}; // <= the number will match the case
 
-
+#define RWOBJ_LOOP	20
+static void rwobject(rcut_object_t * objp) {
+	int i,j,sum;
+	for (i = 0; i < RWOBJ_LOOP; ++i) {
+		for (j = 0; j < NUM_DATA; ++j) {
+			sum += objp->o_data[j];
+		}
+	}
+	printk(KERN_INFO "rwobject %d\n", sum);
+}
 
 static rcut_object_t * lookup(uint32_t lookupid)
 {
@@ -61,7 +73,6 @@ static rcut_object_t * lookup(uint32_t lookupid)
 	bucket = &hashtable.buckets[lookupid % NUM_BUCKETS];
 	n = 0;
 	hlist_for_each_entry(objp, bucket, o_node) {
-//		printk(KERN_INFO "\tLOOKUP walk %d : id = %d\n", n++, objp->o_id);
 		if (objp->o_id == lookupid)
 			return objp;
 	}
@@ -78,14 +89,13 @@ static int remove_nolock(void * data)
 	rcut_object_t * objp;
 
 	param = (rcut_param_t *) data;
-//	printk(KERN_INFO "REMOVE param = %p\n", param);
 	objp = lookup(param->p_id);
 	if (objp == NULL) {
 		printk(KERN_INFO "REMOVE id = %d | not found", param->p_id);
 		return 0;
 	}
-	printk(KERN_INFO "REMOVE id = %d | data = %s\n", objp->o_id, objp->o_data);
 	hlist_del(&objp->o_node);
+	printk(KERN_INFO "REMOVE id = %d | data = %s\n", objp->o_id, objp->o_data);
 	kfree(objp);
 
 	return 0;
@@ -97,10 +107,9 @@ static int insert_nolock(void * data)
 	struct hlist_head * bucket;
 
 	param = (rcut_param_t *) data; 
-//	printk(KERN_INFO "INSERT param = %p\n", param);
 	objp = lookup(param->p_id);
 	if (objp != NULL) 
-		remove_nolock(data);
+		return 0;
 	objp = kmalloc(sizeof(rcut_object_t), GFP_KERNEL);
 	objp->o_id = param->p_id;
 	memcpy(objp->o_data, param->p_data, sizeof(objp->o_data));
@@ -117,12 +126,12 @@ static int read_nolock(void * data)
 	rcut_object_t * objp;
 
 	param = (rcut_param_t *) data; 
-//	printk(KERN_INFO "READ param = %p\n", param);
 	objp = lookup(param->p_id);
 	if (objp == NULL) {
 		printk(KERN_INFO "READ id = %d | not found\n", param->p_id);
 		return 0;
 	}
+	rwobject(objp);
 	printk(KERN_INFO "READ id = %d | data = %s\n", objp->o_id, objp->o_data);
 
 	return 0;
@@ -189,15 +198,10 @@ static int insert_rcu(void * data)
 	mutex_lock(&global_mutex);
 
 	param = (rcut_param_t *) data; 
-//	printk(KERN_INFO "INSERT_RCU param = %p\n", param);
 	objp = lookup(param->p_id);
 	if (objp != NULL) {
-		hlist_del_rcu(&objp->o_node);
-		spin_lock(&objp->o_lock);
-		objp->o_invalid = 1;
-		spin_unlock(&objp->o_lock);
-		synchronize_rcu();
-		kfree(objp);
+		mutex_unlock(&global_mutex);
+		return 0;
 	}
 	objp = kmalloc(sizeof(rcut_object_t), GFP_KERNEL);
 	objp->o_id = param->p_id;
@@ -219,7 +223,6 @@ static int remove_rcu(void * data)
 	mutex_lock(&global_mutex);
 
 	param = (rcut_param_t *) data;
-//	printk(KERN_INFO "REMOVE_RCU param = %p\n", param);
 	objp = lookup(param->p_id);
 	if (objp == NULL) {
 		printk(KERN_INFO "REMOVE_RCU id = %d | not found", param->p_id);
@@ -244,12 +247,12 @@ static int read_rcu(void * data)
 	rcut_object_t * objp;
 
 	param = (rcut_param_t *) data; 
-//	printk(KERN_INFO "READ_RCU param = %p\n", param);
 	objp = lookup_rcu(param->p_id);
 	if (objp == NULL) {
 		printk(KERN_INFO "READ_RCU id = %d | not found\n", param->p_id);
 		return 0;
 	}
+	rwobject(objp);
 	printk(KERN_INFO "READ_RCU id = %d | data = %s\n", objp->o_id, objp->o_data);
 	spin_unlock(&objp->o_lock);
 	
@@ -320,13 +323,13 @@ static int manager_entry(void *data)
 		funcs->read(&param);
 
 	} else if (n <= FUNC_PROB[3]) {
-		printk(KERN_INFO "FATAL\n");
+		printk(KERN_ALERT "FATAL\n");
 
 	} else {
-		printk(KERN_INFO "FATAL\n");
+		printk(KERN_ALERT "FATAL\n");
 
 	}
-	printk(KERN_INFO "EXIT %d\n", *thread_id);
+//	printk(KERN_INFO "EXIT %d\n", *thread_id);
 	kfree(thread_id);
 	up(&manager_sem);
 	do_exit(0);
@@ -349,7 +352,8 @@ static int manager(unsigned workers, uint32_t limit) {
 	for (param.p_id = 0; param.p_id < ID_MAX; param.p_id += 2) 
 		(nolock.insert)(&param);
 	
-	if (limit == 0) limit = 10;
+	if (limit <= 0) limit = 1;
+	if (workers <= 0) workers = 1;
 
 	// current strategy options:
 	// 1. use a semaphore with blocking
@@ -371,25 +375,52 @@ static int manager(unsigned workers, uint32_t limit) {
 		data = kmalloc(sizeof(uint32_t), GFP_KERNEL);
 		*data = thread_id;
 		++thread_id;
-		printk(KERN_INFO "ENTER %d\n", *data);
+//		printk(KERN_INFO "ENTER %d\n", *data);
 		w = kthread_run(manager_entry, data, "mentry");			
 	}
 	end = jiffies;
 	printk(KERN_INFO "==========================\n"
-			 "=======END TEST===========\n"
-			 "  TOTAL TIME : %d\n"
-			 "==========================\n", jiffies_to_msecs(end - start));
+			 "=======END TEST===========\n");
+	printk(KERN_ALERT "  TOTAL TIME : %d\n", jiffies_to_msecs(end - start));
+	printk(KERN_INFO "==========================\n");
+
 	
-	return 0;
+	return jiffies_to_msecs(end - start);
 }
 
 ///////////////////////////////////////////////////////////////
 // entry point
 ///////////////////////////////////////////////////////////////
 
+static long input_workers = 1;
+static long input_limit = 10;
+static char* input_strategy = "rcu";
+
+module_param(input_workers, long, S_IRUSR);
+MODULE_PARM_DESC(input_workers, "the number of concurrent workers");
+module_param(input_limit, long, S_IRUSR);
+MODULE_PARM_DESC(input_limit, "the number of total workers completed before stop");
+module_param(input_strategy, charp, S_IRUSR);
+MODULE_PARM_DESC(input_strategy, "the locking strategy: big or rcu");
+
+#define TEST_NUM 10
+
 static int __init test_init(void)
 {
 	int i;
+	unsigned results[TEST_NUM];
+
+	if (input_strategy == NULL) {
+		printk(KERN_ALERT "Please input strategy\n");
+		return -1;
+	} else if (0 == strcmp(input_strategy, "rcu")) {
+		funcs = &rculock;
+	} else if (0 == strcmp(input_strategy, "big")) {
+		funcs = &biglock;
+	} else {
+		printk(KERN_ALERT "Please input strategy\n");
+		return -1;
+	}
 
 	printk(KERN_INFO "TEST_INIT\n==============\n");
 	
@@ -398,7 +429,16 @@ static int __init test_init(void)
 		INIT_HLIST_HEAD(&hashtable.buckets[i]);
 	}
 
-	manager(3, 1000);
+	for (i = 0; i < TEST_NUM; ++i) {
+		results[i] = manager(input_workers, input_limit);
+	}
+
+	for (i = 0; i < TEST_NUM; ++i) {
+		printk(KERN_INFO "TEST No. %d : %u", i, results[i]);
+	}
+
+	msleep(1000);
+
 	return 0;
 }
 
