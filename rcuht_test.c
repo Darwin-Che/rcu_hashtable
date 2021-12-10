@@ -15,8 +15,11 @@
 #include <linux/version.h>
 #include <linux/tty.h>
 #include <linux/proc_fs.h>
+#include <linux/rcupdate.h>
 
 MODULE_LICENSE("GPL");
+
+//#define ENABLE_LOG 
 
 #define NUM_DATA 128
 typedef struct rcut_object {
@@ -25,11 +28,12 @@ typedef struct rcut_object {
 	struct hlist_node o_node;
 	spinlock_t o_lock;
 	int o_invalid;
+	struct rcu_head o_rh;
 
 	char o_data[NUM_DATA];
 } rcut_object_t;
 
-#define NUM_BUCKETS 31
+#define NUM_BUCKETS 1
 typedef struct rcut_hashtable {
 	struct hlist_head buckets[NUM_BUCKETS];
 } rcut_hashtable_t;
@@ -38,11 +42,17 @@ static rcut_hashtable_t hashtable;
 
 static struct mutex global_mutex;
 
+static long input_hllen = 14; 
+module_param(input_hllen, long, S_IRUSR);
+MODULE_PARM_DESC(input_hllen, "the max id's shift");
+#define ID_MAX (1 << input_hllen)
+
 typedef struct rcut_param {
 	uint32_t p_id;
 	char p_data[NUM_DATA];
 } rcut_param_t;
 
+static const unsigned FUNC_PROB[] = {12, 25, 255, 255}; // <= the number will match the case
 typedef struct rcut_funcs {
 	int (*insert)(void *);
 	int (*remove)(void *);
@@ -50,18 +60,15 @@ typedef struct rcut_funcs {
 	int (*write)(void *);
 } rcut_funcs_t;
 
-static const unsigned ID_MAX = 256;
-static const unsigned FUNC_PROB[] = {0, 0, 255, 255}; // <= the number will match the case
+static int input_rdlen = 0;
+module_param(input_rdlen, int, S_IRUSR);
+MODULE_PARM_DESC(input_rdlen, "read sleep delay");
 
-#define RWOBJ_LOOP	20
 static void rwobject(rcut_object_t * objp) {
-	int i,j,sum;
-	for (i = 0; i < RWOBJ_LOOP; ++i) {
-		for (j = 0; j < NUM_DATA; ++j) {
-			sum += objp->o_data[j];
-		}
-	}
+#ifdef ENABLE_LOG
 	printk(KERN_INFO "rwobject %d\n", sum);
+#endif
+	mdelay(input_rdlen);
 }
 
 static rcut_object_t * lookup(uint32_t lookupid)
@@ -91,11 +98,15 @@ static int remove_nolock(void * data)
 	param = (rcut_param_t *) data;
 	objp = lookup(param->p_id);
 	if (objp == NULL) {
+#ifdef ENABLE_LOG
 		printk(KERN_INFO "REMOVE id = %d | not found", param->p_id);
+#endif
 		return 0;
 	}
 	hlist_del(&objp->o_node);
+#ifdef ENABLE_LOG
 	printk(KERN_INFO "REMOVE id = %d | data = %s\n", objp->o_id, objp->o_data);
+#endif
 	kfree(objp);
 
 	return 0;
@@ -116,7 +127,9 @@ static int insert_nolock(void * data)
 	objp->o_data[NUM_DATA-1] = 0;
 	bucket = &hashtable.buckets[objp->o_id % NUM_BUCKETS];
 	hlist_add_head(&objp->o_node, bucket);
+#ifdef ENABLE_LOG
 	printk(KERN_INFO "INSERT id = %d | data = %s\n", objp->o_id, objp->o_data);
+#endif
 	
 	return 0;
 }
@@ -128,11 +141,15 @@ static int read_nolock(void * data)
 	param = (rcut_param_t *) data; 
 	objp = lookup(param->p_id);
 	if (objp == NULL) {
+#ifdef ENABLE_LOG
 		printk(KERN_INFO "READ id = %d | not found\n", param->p_id);
+#endif
 		return 0;
 	}
 	rwobject(objp);
+#ifdef ENABLE_LOG
 	printk(KERN_INFO "READ id = %d | data = %s\n", objp->o_id, objp->o_data);
+#endif
 
 	return 0;
 }
@@ -176,11 +193,6 @@ static rcut_object_t * lookup_rcu(uint32_t lookupid)
 	hlist_for_each_entry_rcu(objp, bucket, o_node) {
 		if (objp->o_id == lookupid) {
 			spin_lock(&objp->o_lock);
-			if (objp->o_invalid) {
-				spin_unlock(&objp->o_lock);
-				rcu_read_unlock();
-				return NULL;
-			}
 			rcu_read_unlock();
 			return objp;
 		}
@@ -209,7 +221,9 @@ static int insert_rcu(void * data)
 	objp->o_data[NUM_DATA-1] = 0;
 	bucket = &hashtable.buckets[objp->o_id % NUM_BUCKETS];
 	hlist_add_head_rcu(&objp->o_node, bucket);
+#ifdef ENABLE_LOG
 	printk(KERN_INFO "INSERT_RCU id = %d | data = %s\n", objp->o_id, objp->o_data);
+#endif
 
 	mutex_unlock(&global_mutex);
 	return 0;
@@ -225,16 +239,17 @@ static int remove_rcu(void * data)
 	param = (rcut_param_t *) data;
 	objp = lookup(param->p_id);
 	if (objp == NULL) {
+#ifdef ENABLE_LOG
 		printk(KERN_INFO "REMOVE_RCU id = %d | not found", param->p_id);
+#endif
 		mutex_unlock(&global_mutex);
 		return 0;
 	}
+#ifdef ENABLE_LOG
 	printk(KERN_INFO "REMOVE_RCU id = %d | data = %s\n", objp->o_id, objp->o_data);
+#endif
 	hlist_del_rcu(&objp->o_node);
 	mutex_unlock(&global_mutex);
-	spin_lock(&objp->o_lock);
-	objp->o_invalid = 1;
-	spin_unlock(&objp->o_lock);
 	synchronize_rcu();
 	kfree(objp);
 
@@ -249,15 +264,50 @@ static int read_rcu(void * data)
 	param = (rcut_param_t *) data; 
 	objp = lookup_rcu(param->p_id);
 	if (objp == NULL) {
+#ifdef ENABLE_LOG
 		printk(KERN_INFO "READ_RCU id = %d | not found\n", param->p_id);
+#endif
 		return 0;
 	}
 	rwobject(objp);
+#ifdef ENABLE_LOG
 	printk(KERN_INFO "READ_RCU id = %d | data = %s\n", objp->o_id, objp->o_data);
+#endif
 	spin_unlock(&objp->o_lock);
 	
 	return 0;
 }
+
+////////////////////////////////////////////////////////////
+// call_rcu 
+///////////////////////////////////////////////////////////
+
+static int remove_callrcu(void * data)
+{
+	rcut_param_t * param;
+	rcut_object_t * objp;
+
+	mutex_lock(&global_mutex);
+
+	param = (rcut_param_t *) data;
+	objp = lookup(param->p_id);
+	if (objp == NULL) {
+#ifdef ENABLE_LOG
+		printk(KERN_INFO "REMOVE_RCU id = %d | not found", param->p_id);
+#endif
+		mutex_unlock(&global_mutex);
+		return 0;
+	}
+#ifdef ENABLE_LOG
+	printk(KERN_INFO "REMOVE_RCU id = %d | data = %s\n", objp->o_id, objp->o_data);
+#endif
+	hlist_del_rcu(&objp->o_node);
+	mutex_unlock(&global_mutex);
+	kfree_rcu(objp, o_rh);
+
+	return 0;
+}
+
 
 ////////////////////////////////////////////////////////////
 // set rcut_funcs_t pointers
@@ -281,6 +331,12 @@ static rcut_funcs_t rculock = {
 	read_rcu,
 	NULL,
 };
+static rcut_funcs_t callrculock = {
+	insert_rcu,
+	remove_callrcu,
+	read_rcu,
+	NULL,
+};
 
 static rcut_funcs_t * funcs = &rculock;
 
@@ -298,28 +354,26 @@ typedef struct rcut_mgrexec {
 static int manager_entry(void *data) 
 {
 	unsigned char n;
+	uint32_t id;
 	rcut_param_t param;
 	uint32_t * thread_id;
 
 	thread_id = (uint32_t *) data;  
 	get_random_bytes(&n, 1);
+	id = 0;
+	get_random_bytes(&id, 4);
+	id &= (1 << input_hllen) - 1;
 	if (n <= FUNC_PROB[0]) {
-		get_random_bytes(&n, 1);
-		n = 0;
-		param.p_id = n;
+		param.p_id = id;
 		strcpy(param.p_data, "p_data_inserted");
 		funcs->insert(&param);
 		
 	} else if (n <= FUNC_PROB[1]) {
-		get_random_bytes(&n, 1);
-		n = 0;
-		param.p_id = n;
+		param.p_id = id;
 		funcs->remove(&param);
 
 	} else if (n <= FUNC_PROB[2]) {
-		get_random_bytes(&n, 1);
-		n = 0;
-		param.p_id = n;
+		param.p_id = id;
 		funcs->read(&param);
 
 	} else if (n <= FUNC_PROB[3]) {
@@ -329,7 +383,9 @@ static int manager_entry(void *data)
 		printk(KERN_ALERT "FATAL\n");
 
 	}
-//	printk(KERN_INFO "EXIT %d\n", *thread_id);
+#ifdef ENABLE_LOG
+	printk(KERN_INFO "EXIT %d\n", *thread_id);
+#endif
 	kfree(thread_id);
 	up(&manager_sem);
 	do_exit(0);
@@ -375,7 +431,9 @@ static int manager(unsigned workers, uint32_t limit) {
 		data = kmalloc(sizeof(uint32_t), GFP_KERNEL);
 		*data = thread_id;
 		++thread_id;
-//		printk(KERN_INFO "ENTER %d\n", *data);
+#ifdef ENABLE_LOG
+		printk(KERN_INFO "ENTER %d\n", *data);
+#endif
 		w = kthread_run(manager_entry, data, "mentry");			
 	}
 	end = jiffies;
@@ -394,16 +452,16 @@ static int manager(unsigned workers, uint32_t limit) {
 
 static long input_workers = 1;
 static long input_limit = 10;
-static char* input_strategy = "rcu";
+static char* input_strategy = "big";
 
 module_param(input_workers, long, S_IRUSR);
 MODULE_PARM_DESC(input_workers, "the number of concurrent workers");
 module_param(input_limit, long, S_IRUSR);
 MODULE_PARM_DESC(input_limit, "the number of total workers completed before stop");
 module_param(input_strategy, charp, S_IRUSR);
-MODULE_PARM_DESC(input_strategy, "the locking strategy: big or rcu");
+MODULE_PARM_DESC(input_strategy, "the locking strategy: big or rcu or callrcu");
 
-#define TEST_NUM 10
+#define TEST_NUM 6
 
 static int __init test_init(void)
 {
@@ -415,6 +473,8 @@ static int __init test_init(void)
 		return -1;
 	} else if (0 == strcmp(input_strategy, "rcu")) {
 		funcs = &rculock;
+	} else if (0 == strcmp(input_strategy, "callrcu")) {
+		funcs = &callrculock;
 	} else if (0 == strcmp(input_strategy, "big")) {
 		funcs = &biglock;
 	} else {
@@ -431,13 +491,13 @@ static int __init test_init(void)
 
 	for (i = 0; i < TEST_NUM; ++i) {
 		results[i] = manager(input_workers, input_limit);
+		msleep(500);
 	}
 
 	for (i = 0; i < TEST_NUM; ++i) {
 		printk(KERN_INFO "TEST No. %d : %u", i, results[i]);
 	}
 
-	msleep(1000);
 
 	return 0;
 }

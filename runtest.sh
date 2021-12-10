@@ -1,40 +1,72 @@
 #!/bin/bash
 
+:'
+sudo insmod rcuht_test.ko \
+	input_strategy=big \
+	input_limit=100 \
+	input_workers=10  \
+	input_hllen=14 \
+	input_rdlen=0
+#'
+
 make
-
-cores="10"
-limit="1000"
-workers="10"
-
-
-strat="rcu"
-
-sudo insmod rcuht_test.ko \
-	input_strategy=${strat} \
-	input_limit=${limit} \
-	input_workers=${workers}
-
-tail /var/log/syslog -n50 > 'log.txt'
-
-mkdir -p "result/${cores}"
-resultfile="result/${cores}/${strat}_${workers}.txt"
-
-awk "/TEST No./ { print ${limit} / \$NF * 1000 }" log.txt > ${resultfile}
+if [[ $? -ne 0 ]]; then
+	exit 1
+fi
 
 sudo rmmod rcuht_test
 
-strat="big"
+rm result*.txt
 
-sudo insmod rcuht_test.ko \
-	input_strategy=${strat} \
-	input_limit=${limit} \
-	input_workers=${workers}
+# called with ${strat}, ${workers}, ${hllen}, ${rdlen}
+function mytest() {
 
-tail /var/log/syslog -n50 > 'log.txt'
+	limit=8000
 
-mkdir -p "result/${cores}"
-resultfile="result/${cores}/${strat}_${workers}.txt"
+	if [[ ${hllen} -eq 15 ]]; then
+		let limit/=2
+	fi
+	if [[ ${hllen} -eq 16 ]]; then
+		let limit/=4
+	fi
 
-awk "/TEST No./ { print ${limit} / \$NF * 1000 }" log.txt > ${resultfile}
+	if [[ ${rdlen} -eq 2 ]]; then
+		let limit/=2
+	fi
 
-sudo rmmod rcuht_test
+	if [[ ${rdlen} -eq 5 ]]; then
+		let limit/=4
+	fi
+
+	echo "testrun ${testrun} : starting ${strat}, workers=${workers}, hllen=${hllen}, rdlen=${rdlen}, limit=${limit}"
+
+	sudo insmod rcuht_test.ko \
+		input_strategy=${strat} \
+		input_limit=${limit} \
+		input_workers=${workers} \
+		input_hllen=${hllen} \
+		input_rdlen=${rdlen}
+
+	sudo rmmod rcuht_test
+
+	tail /var/log/syslog -n40 > "log${strat}.txt"
+	echo "${strat}  ${workers}  ${hllen}  ${rdlen}" >> "result${testrun}.txt"
+	awk "/TEST No./ { print ${limit} / \$NF * 1000 }" "log${strat}.txt"  >> "result${testrun}.txt"
+
+}
+
+for testrun in 1 2 3; do
+
+for strat in big rcu callrcu; do
+	for workers in 2 6 10; do
+		for hllen in 14 15 16; do
+			for rdlen in 0 2 5; do
+				mytest
+			done
+		done
+	done
+done
+
+done
+
+

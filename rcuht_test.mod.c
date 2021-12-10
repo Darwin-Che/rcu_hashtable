@@ -25,11 +25,15 @@ MODULE_INFO(retpoline, "Y");
 static const struct modversion_info ____versions[]
 __used __section(__versions) = {
 	{ 0xb3753869, "module_layout" },
+	{ 0x5ab5b891, "param_ops_int" },
 	{ 0xb0ebce5e, "param_ops_long" },
 	{ 0xde4c1a24, "param_ops_charp" },
 	{ 0xf9a482f9, "msleep" },
 	{ 0x977f511b, "__mutex_init" },
 	{ 0xe2d5255a, "strcmp" },
+	{ 0x36e58bcd, "pv_ops" },
+	{ 0xdbf17652, "_raw_spin_lock" },
+	{ 0xeae3dfd6, "__const_udelay" },
 	{ 0x952664c5, "do_exit" },
 	{ 0xcf2a6966, "up" },
 	{ 0x79aa04a2, "get_random_bytes" },
@@ -41,18 +45,17 @@ __used __section(__versions) = {
 	{ 0x35216b26, "kmalloc_caches" },
 	{ 0x6626afca, "down" },
 	{ 0x15ba50a6, "jiffies" },
+	{ 0xc5850110, "printk" },
 	{ 0x2ea2c95c, "__x86_indirect_thunk_rax" },
 	{ 0x6091797f, "synchronize_rcu" },
-	{ 0x36e58bcd, "pv_ops" },
-	{ 0xdbf17652, "_raw_spin_lock" },
-	{ 0x37a0cba, "kfree" },
+	{ 0x19f462ab, "kfree_call_rcu" },
 	{ 0x409bcb62, "mutex_unlock" },
 	{ 0x2ab7989d, "mutex_lock" },
-	{ 0xc5850110, "printk" },
+	{ 0x37a0cba, "kfree" },
 	{ 0xbdfb6dbb, "__fentry__" },
 };
 
 MODULE_INFO(depends, "");
 
 
-MODULE_INFO(srcversion, "71D6841BDCE8B0A236713EE");
+MODULE_INFO(srcversion, "B7E6FF043CA51EC97904CB7");

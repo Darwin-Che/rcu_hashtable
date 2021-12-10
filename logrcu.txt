@@ -1,0 +1,40 @@
+Dec 10 06:16:39 czc kernel: [21661.480809] =======START TEST=========
+Dec 10 06:16:39 czc kernel: [21661.480809] ==========================
+Dec 10 06:16:39 czc kernel: [21661.709300] ==========================
+Dec 10 06:16:39 czc kernel: [21661.709300] =======END TEST===========
+Dec 10 06:16:39 czc kernel: [21661.709301]   TOTAL TIME : 228
+Dec 10 06:16:39 czc kernel: [21661.709466] ==========================
+Dec 10 06:16:40 czc multipathd[828]: sda: add missing path
+Dec 10 06:16:40 czc multipathd[828]: sda: failed to get udev uid: Invalid argument
+Dec 10 06:16:40 czc multipathd[828]: sda: failed to get sysfs uid: Invalid argument
+Dec 10 06:16:40 czc multipathd[828]: sda: failed to get sgio uid: No such file or directory
+Dec 10 06:16:46 czc kernel: [21668.252433] ==========================
+Dec 10 06:16:46 czc kernel: [21668.252433] =======START TEST=========
+Dec 10 06:16:46 czc kernel: [21668.252433] ==========================
+Dec 10 06:16:46 czc kernel: [21668.470292] ==========================
+Dec 10 06:16:46 czc kernel: [21668.470292] =======END TEST===========
+Dec 10 06:16:46 czc kernel: [21668.470293]   TOTAL TIME : 216
+Dec 10 06:16:46 czc kernel: [21668.470431] ==========================
+Dec 10 06:16:46 czc multipathd[828]: sda: add missing path
+Dec 10 06:16:46 czc multipathd[828]: sda: failed to get udev uid: Invalid argument
+Dec 10 06:16:46 czc multipathd[828]: sda: failed to get sysfs uid: Invalid argument
+Dec 10 06:16:46 czc multipathd[828]: sda: failed to get sgio uid: No such file or directory
+Dec 10 06:16:52 czc multipathd[828]: sda: add missing path
+Dec 10 06:16:52 czc multipathd[828]: sda: failed to get udev uid: Invalid argument
+Dec 10 06:16:52 czc multipathd[828]: sda: failed to get sysfs uid: Invalid argument
+Dec 10 06:16:52 czc multipathd[828]: sda: failed to get sgio uid: No such file or directory
+Dec 10 06:16:52 czc kernel: [21674.980992] ==========================
+Dec 10 06:16:52 czc kernel: [21674.980992] =======START TEST=========
+Dec 10 06:16:52 czc kernel: [21674.980992] ==========================
+Dec 10 06:16:53 czc kernel: [21675.184836] ==========================
+Dec 10 06:16:53 czc kernel: [21675.184836] =======END TEST===========
+Dec 10 06:16:53 czc kernel: [21675.184837]   TOTAL TIME : 204
+Dec 10 06:16:53 czc kernel: [21675.184997] ==========================
+Dec 10 06:16:53 czc kernel: [21675.699995] TEST No. 0 : 224
+Dec 10 06:16:53 czc kernel: [21675.699997] TEST No. 1 : 204
+Dec 10 06:16:53 czc kernel: [21675.699998] TEST No. 2 : 236
+Dec 10 06:16:53 czc kernel: [21675.699999] TEST No. 3 : 228
+Dec 10 06:16:53 czc kernel: [21675.700000] TEST No. 4 : 216
+Dec 10 06:16:53 czc kernel: [21675.700001] TEST No. 5 : 204
+Dec 10 06:16:53 czc kernel: [21675.709168] ==============
+Dec 10 06:16:53 czc kernel: [21675.709168] TEST_EXIT
