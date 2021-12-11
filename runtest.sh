@@ -21,7 +21,11 @@ rm result*.txt
 # called with ${strat}, ${workers}, ${hllen}, ${rdlen}
 function mytest() {
 
-	limit=200000
+	limit=10000
+
+	if [[ ${strat} =  'rcu' ]] && [[ ${workers} -eq 2 ]]; then
+		let limit/=4
+	fi
 
 	if [[ ${strat} != 'big' ]] && [[ ${workers} -eq 5 ]]; then
 		let limit*=2
@@ -57,7 +61,7 @@ function mytest() {
 
 	tail /var/log/syslog -n40 > "log${strat}.txt"
 	echo "${strat}  ${workers}  ${hllen}  ${rdlen} ${limit}" >> "result${testrun}.txt"
-	awk "/TEST No./ { print \$NF * 1000 }" "log${strat}.txt"  >> "result${testrun}.txt"
+	awk "/TEST No./ { print \$NF \" \" ${limit}/\$NF }" "log${strat}.txt"  >> "result${testrun}.txt"
 
 }
 
