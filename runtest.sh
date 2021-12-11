@@ -21,32 +21,9 @@ rm result*.txt
 # called with ${strat}, ${workers}, ${hllen}, ${rdlen}
 function mytest() {
 
-	limit=10000
+	limit=$(sed "${limitline}q;d" limit.txt)
 
-	if [[ ${strat} =  'rcu' ]] && [[ ${workers} -eq 2 ]]; then
-		let limit/=4
-	fi
-
-	if [[ ${strat} != 'big' ]] && [[ ${workers} -eq 5 ]]; then
-		let limit*=2
-	fi
-	if [[ ${strat} != 'big' ]] && [[ ${workers} -eq 8 ]]; then
-		let limit*=4
-	fi
-
-	if [[ ${hllen} -eq 15 ]]; then
-		let limit/=2
-	fi
-	if [[ ${hllen} -eq 16 ]]; then
-		let limit/=4
-	fi
-
-	if [[ ${rdlen} -eq 200 ]]; then
-		let limit/=2
-	fi
-	if [[ ${rdlen} -eq 500 ]]; then
-		let limit/=4
-	fi
+	let limit/=10
 
 	echo "testrun ${testrun} : starting ${strat}, workers=${workers}, hllen=${hllen}, rdlen=${rdlen}, limit=${limit}"
 
@@ -65,6 +42,8 @@ function mytest() {
 
 }
 
+limitline=1
+
 for testrun in 1 2 3; do
 echo "start testrun${testrun}"
 for strat in big rcu callrcu; do
@@ -72,6 +51,7 @@ for strat in big rcu callrcu; do
 		for hllen in 14 15 16; do
 			for rdlen in 0 200 500; do
 				mytest
+				let limitline+=1
 			done
 		done
 	done

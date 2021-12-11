@@ -359,13 +359,13 @@ static int manager_entry(void *data)
 	unsigned char n;
 	uint32_t id;
 	rcut_param_t param;
-	uint32_t limit;
-	uint32_t * retval;
+	uint64_t limit;
+	uint64_t * retval;
 	unsigned long start, end;
 
-	limit = *((uint32_t *) data);
+	limit = *((uint64_t *) data);
 
-	printk(KERN_INFO "manager entry started with limit %u\n", limit);
+	printk(KERN_INFO "manager entry started with limit %llu\n", limit);
 
 	++limit;
 	start = jiffies;
@@ -397,8 +397,9 @@ static int manager_entry(void *data)
 	}
 	end = jiffies;
 
-	retval = (uint32_t *) data;
-	*retval = end - start;
+	retval = (uint64_t *) data;
+	retval[0] = end - start;
+	retval[1] = start;
 
 	printk(KERN_INFO "manager entry begin exit");
 	spin_lock(&finished_cnt_lock);
@@ -416,9 +417,13 @@ static int manager(unsigned workers, uint32_t limit) {
 	
 	rcut_param_t param;
 	struct task_struct ** w;
-	uint32_t * data;
+	uint64_t * data;
 	uint64_t sum;
 	int i;
+	int last_finished_cnt;
+
+	printk(KERN_ALERT "manager starts: workers=%u, limit=%u\n",
+			workers, limit);
 
 	spin_lock_init(&finished_cnt_lock);
 
@@ -432,16 +437,17 @@ static int manager(unsigned workers, uint32_t limit) {
 
 	// initialize the worker pool, free w and data later
 	w = kmalloc(sizeof(struct task_struct) * workers, GFP_KERNEL);
-	data = kmalloc(sizeof(uint32_t) * workers, GFP_KERNEL);
+	data = kmalloc(2 * sizeof(uint64_t) * workers, GFP_KERNEL); // returned with dura jif and start jif
 	for (i = 0; i < workers; ++i) {
-		data[i] = limit / workers;
-		w[i] = kthread_create(manager_entry, &data[i], "mentry");
+		data[2 * i] = limit / workers;
+		w[i] = kthread_create(manager_entry, &data[2 * i], "mentry");
 	}
 
 	printk(KERN_INFO "==========================\n"
 			 "=======START TEST=========\n"
 			 "==========================\n");
 
+	last_finished_cnt = -1;
 	finished_cnt = 0;
 	manager_thread = current;
 	set_current_state(TASK_INTERRUPTIBLE);
@@ -453,6 +459,13 @@ static int manager(unsigned workers, uint32_t limit) {
 	// https://www.linuxjournal.com/article/8144
 	spin_lock(&finished_cnt_lock);
 	while (finished_cnt != workers) {
+		if (finished_cnt == last_finished_cnt) {
+			// when ctrl-C is invoked
+			printk(KERN_ALERT "DEBUG\n");
+			spin_unlock(&finished_cnt_lock);
+			return 0;  // 0 indicates fail
+		}
+		last_finished_cnt = finished_cnt;
 		printk(KERN_INFO "manager: finished_cnt = %u\n", finished_cnt);
 		spin_unlock(&finished_cnt_lock);
 		schedule();
@@ -465,7 +478,11 @@ static int manager(unsigned workers, uint32_t limit) {
 	// all threads are finished, the time they spent is on data, take the average
 	sum = 0;
 	for (i = 0; i < workers; ++i) {
-		sum += data[i];
+		sum += data[2 * i];
+		printk(KERN_ALERT "worker %d : dura=%u, start=%u \n", 
+				i,
+				jiffies_to_msecs(data[2 * i]),
+				jiffies_to_msecs(data[2 * i + 1]));
 	}
 	sum /= workers;
 
@@ -525,6 +542,8 @@ static int __init test_init(void)
 
 	for (i = 0; i < TEST_NUM; ++i) {
 		results[i] = manager(input_workers, input_limit);
+		if (results[i] == 0)
+			return -1;
 	}
 
 	for (i = 0; i < TEST_NUM; ++i) {
