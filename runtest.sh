@@ -23,7 +23,7 @@ function mytest() {
 
 	limit=$(sed "${limitline}q;d" limit.txt)
 
-	let limit/=10
+	let limit/=2
 
 	echo "testrun ${testrun} : starting ${strat}, workers=${workers}, hllen=${hllen}, rdlen=${rdlen}, limit=${limit}"
 
