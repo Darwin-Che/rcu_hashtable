@@ -1,7 +1,7 @@
 from itertools import islice
 import statistics
 
-fh = open('result1.txt')
+fh = open('result.txt')
 
 while True:
     param = fh.readline()

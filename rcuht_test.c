@@ -28,6 +28,7 @@ typedef struct rcut_object {
 	struct hlist_node o_node;
 	spinlock_t o_lock;
 	struct rcu_head o_rh;
+	int o_invalid;
 
 	char o_data[NUM_DATA];
 } rcut_object_t;
@@ -178,7 +179,7 @@ static int read_biglock(void * data) {
 }
 
 /////////////////////////////////////////////////////////////
-// rcu implementation
+// old rcu implementation
 /////////////////////////////////////////////////////////////
 
 static rcut_object_t * lookup_rcu(uint32_t lookupid)
@@ -251,8 +252,7 @@ static int remove_rcu(void * data)
 #endif
 	hlist_del_rcu(&objp->o_node);
 	mutex_unlock(&global_mutex);
-	synchronize_rcu();
-	kfree(objp);
+	kfree_rcu(objp, o_rh);
 
 	return 0;
 }
@@ -279,11 +279,65 @@ static int read_rcu(void * data)
 	return 0;
 }
 
-////////////////////////////////////////////////////////////
-// call_rcu 
-///////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////
+// new rcu implementation
+/////////////////////////////////////////////////////////////
 
-static int remove_callrcu(void * data)
+static rcut_object_t * lookup_newrcu(uint32_t lookupid)
+{
+	rcut_object_t * objp;
+	struct hlist_head * bucket;
+
+	bucket = &hashtable.buckets[lookupid % NUM_BUCKETS];
+
+	rcu_read_lock();
+	hlist_for_each_entry_rcu(objp, bucket, o_node) {
+		if (objp->o_id == lookupid) {
+			spin_lock(&objp->o_lock);
+			if (objp->o_invalid) {
+				spin_unlock(&objp->o_lock);
+				rcu_read_unlock();
+				return NULL;
+			}
+			rcu_read_unlock();
+			return objp;
+		}
+	}
+	rcu_read_unlock();
+	return NULL;
+}
+
+static int insert_newrcu(void * data) 
+{
+	rcut_param_t * param;
+	rcut_object_t * objp;
+	struct hlist_head * bucket;
+
+	mutex_lock(&global_mutex);
+
+	param = (rcut_param_t *) data; 
+	objp = lookup(param->p_id);
+	if (objp != NULL) {
+		mutex_unlock(&global_mutex);
+		return 0;
+	}
+	objp = kmalloc(sizeof(rcut_object_t), GFP_KERNEL);
+	spin_lock_init(&objp->o_lock);
+	rcu_head_init(&objp->o_rh);
+	objp->o_id = param->p_id;
+	memcpy(objp->o_data, param->p_data, sizeof(objp->o_data));
+	objp->o_data[NUM_DATA-1] = 0;
+	bucket = &hashtable.buckets[objp->o_id % NUM_BUCKETS];
+	hlist_add_head_rcu(&objp->o_node, bucket);
+#ifdef ENABLE_LOG
+	printk(KERN_INFO "INSERT_RCU id = %d | data = %s\n", objp->o_id, objp->o_data);
+#endif
+
+	mutex_unlock(&global_mutex);
+	return 0;
+}
+
+static int remove_newrcu(void * data)
 {
 	rcut_param_t * param;
 	rcut_object_t * objp;
@@ -304,11 +358,36 @@ static int remove_callrcu(void * data)
 #endif
 	hlist_del_rcu(&objp->o_node);
 	mutex_unlock(&global_mutex);
+	spin_lock(&objp->o_lock);
+	objp ->o_invalid = true;
+	spin_unlock(&objp->o_lock);
 	kfree_rcu(objp, o_rh);
 
 	return 0;
 }
 
+
+static int read_newrcu(void * data)
+{
+	rcut_param_t * param;
+	rcut_object_t * objp;
+
+	param = (rcut_param_t *) data; 
+	objp = lookup_newrcu(param->p_id);
+	if (objp == NULL) {
+#ifdef ENABLE_LOG
+		printk(KERN_INFO "READ_RCU id = %d | not found\n", param->p_id);
+#endif
+		return 0;
+	}
+	rwobject(objp);
+#ifdef ENABLE_LOG
+	printk(KERN_INFO "READ_RCU id = %d | data = %s\n", objp->o_id, objp->o_data);
+#endif
+	spin_unlock(&objp->o_lock);
+	
+	return 0;
+}
 
 ////////////////////////////////////////////////////////////
 // set rcut_funcs_t pointers
@@ -332,10 +411,10 @@ static rcut_funcs_t rculock = {
 	read_rcu,
 	NULL,
 };
-static rcut_funcs_t callrculock = {
-	insert_rcu,
-	remove_callrcu,
-	read_rcu,
+static rcut_funcs_t newrculock = {
+	insert_newrcu,
+	remove_newrcu,
+	read_newrcu,
 	NULL,
 };
 
@@ -374,6 +453,7 @@ static int manager_entry(void *data)
 		id = 0;
 		get_random_bytes(&id, 4);
 		id &= (1 << input_hllen) - 1;
+		id = 0;
 		if (n <= FUNC_PROB[0]) {
 			param.p_id = id;
 			strcpy(param.p_data, "p_data_inserted");
@@ -524,8 +604,8 @@ static int __init test_init(void)
 		return -1;
 	} else if (0 == strcmp(input_strategy, "rcu")) {
 		funcs = &rculock;
-	} else if (0 == strcmp(input_strategy, "callrcu")) {
-		funcs = &callrculock;
+	} else if (0 == strcmp(input_strategy, "newrcu")) {
+		funcs = &newrculock;
 	} else if (0 == strcmp(input_strategy, "big")) {
 		funcs = &biglock;
 	} else {
