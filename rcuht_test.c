@@ -52,7 +52,7 @@ typedef struct rcut_param {
 	char p_data[NUM_DATA];
 } rcut_param_t;
 
-static const unsigned FUNC_PROB[] = {12, 25, 255, 255}; // <= the number will match the case
+static const unsigned FUNC_PROB[] = {12, 25, 140, 255}; // <= the number will match the case
 typedef struct rcut_funcs {
 	int (*insert)(void *);
 	int (*remove)(void *);
@@ -154,6 +154,26 @@ static int read_nolock(void * data)
 	return 0;
 }
 
+static int write_nolock(void * data)
+{
+	rcut_param_t * param;
+	rcut_object_t * objp;
+
+	param = (rcut_param_t *) data; 
+	objp = lookup(param->p_id);
+	if (objp == NULL) {
+#ifdef ENABLE_LOG
+		printk(KERN_INFO "WRITE id = %d | not found\n", param->p_id);
+#endif
+		return 0;
+	}
+	rwobject(objp);
+#ifdef ENABLE_LOG
+	printk(KERN_INFO "WRITE id = %d | data = %s\n", objp->o_id, objp->o_data);
+#endif
+
+	return 0;
+}
 //////////////////////////////////////////////////////////////
 // biglock implementation
 //////////////////////////////////////////////////////////////
@@ -178,6 +198,13 @@ static int read_biglock(void * data) {
 	return 0;
 }
 
+static int read_biglock(void * data) {
+	mutex_lock(&global_mutex);
+	write_nolock(data);
+	mutex_unlock(&global_mutex);
+	return 0;
+}
+
 /////////////////////////////////////////////////////////////
 // old rcu implementation
 /////////////////////////////////////////////////////////////
@@ -192,8 +219,6 @@ static rcut_object_t * lookup_rcu(uint32_t lookupid)
 	rcu_read_lock();
 	hlist_for_each_entry_rcu(objp, bucket, o_node) {
 		if (objp->o_id == lookupid) {
-			spin_lock(&objp->o_lock);
-			rcu_read_unlock();
 			return objp;
 		}
 	}
@@ -216,7 +241,6 @@ static int insert_rcu(void * data)
 		return 0;
 	}
 	objp = kmalloc(sizeof(rcut_object_t), GFP_KERNEL);
-	spin_lock_init(&objp->o_lock);
 	rcu_head_init(&objp->o_rh);
 	objp->o_id = param->p_id;
 	memcpy(objp->o_data, param->p_data, sizeof(objp->o_data));
@@ -274,7 +298,33 @@ static int read_rcu(void * data)
 #ifdef ENABLE_LOG
 	printk(KERN_INFO "READ_RCU id = %d | data = %s\n", objp->o_id, objp->o_data);
 #endif
-	spin_unlock(&objp->o_lock);
+	rcu_read_unlock();
+	
+	return 0;
+}
+
+static int write_rcu(void * data)
+{
+	rcut_param_t * param;
+	rcut_object_t * objp;
+
+	param = (rcut_param_t *) data; 
+
+	mutex_lock(&global_mutex);
+
+	objp = lookup(param->p_id);
+	if (objp == NULL) {
+#ifdef ENABLE_LOG
+		printk(KERN_INFO "WRITE_RCU id = %d | not found\n", param->p_id);
+#endif
+		return 0;
+	}
+	rwobject(objp);
+#ifdef ENABLE_LOG
+	printk(KERN_INFO "WRITE_RCU id = %d | data = %s\n", objp->o_id, objp->o_data);
+#endif
+
+	mutex_unlock(&global_mutex);
 	
 	return 0;
 }
@@ -389,6 +439,28 @@ static int read_newrcu(void * data)
 	return 0;
 }
 
+static int write_newrcu(void * data)
+{
+	rcut_param_t * param;
+	rcut_object_t * objp;
+
+	param = (rcut_param_t *) data; 
+	objp = lookup_newrcu(param->p_id);
+	if (objp == NULL) {
+#ifdef ENABLE_LOG
+		printk(KERN_INFO "WRITE_RCU id = %d | not found\n", param->p_id);
+#endif
+		return 0;
+	}
+	rwobject(objp);
+#ifdef ENABLE_LOG
+	printk(KERN_INFO "WRITE_RCU id = %d | data = %s\n", objp->o_id, objp->o_data);
+#endif
+	spin_unlock(&objp->o_lock);
+	
+	return 0;
+}
+
 ////////////////////////////////////////////////////////////
 // set rcut_funcs_t pointers
 ////////////////////////////////////////////////////////////
@@ -397,25 +469,25 @@ static rcut_funcs_t biglock = {
 	insert_biglock,
 	remove_biglock,
 	read_biglock,
-	NULL,
+	write_biglock,
 };
 static rcut_funcs_t nolock = {
 	insert_nolock,
 	remove_nolock,
 	read_nolock,
-	NULL,
+	write_nolock,,
 };
 static rcut_funcs_t rculock = {
 	insert_rcu,
 	remove_rcu,
 	read_rcu,
-	NULL,
+	write_rcu,
 };
 static rcut_funcs_t newrculock = {
 	insert_newrcu,
 	remove_newrcu,
 	read_newrcu,
-	NULL,
+	write_newrcu,
 };
 
 static rcut_funcs_t * funcs = &rculock;
