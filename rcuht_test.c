@@ -19,7 +19,7 @@
 
 MODULE_LICENSE("GPL");
 
-//#define ENABLE_LOG 
+#define ENABLE_LOG 
 
 #define NUM_DATA 128
 typedef struct rcut_object {
@@ -198,7 +198,7 @@ static int read_biglock(void * data) {
 	return 0;
 }
 
-static int read_biglock(void * data) {
+static int write_biglock(void * data) {
 	mutex_lock(&global_mutex);
 	write_nolock(data);
 	mutex_unlock(&global_mutex);
@@ -317,6 +317,7 @@ static int write_rcu(void * data)
 #ifdef ENABLE_LOG
 		printk(KERN_INFO "WRITE_RCU id = %d | not found\n", param->p_id);
 #endif
+		mutex_unlock(&global_mutex);
 		return 0;
 	}
 	rwobject(objp);
@@ -380,7 +381,7 @@ static int insert_newrcu(void * data)
 	bucket = &hashtable.buckets[objp->o_id % NUM_BUCKETS];
 	hlist_add_head_rcu(&objp->o_node, bucket);
 #ifdef ENABLE_LOG
-	printk(KERN_INFO "INSERT_RCU id = %d | data = %s\n", objp->o_id, objp->o_data);
+	printk(KERN_INFO "INSERT_NEWRCU id = %d | data = %s\n", objp->o_id, objp->o_data);
 #endif
 
 	mutex_unlock(&global_mutex);
@@ -398,13 +399,13 @@ static int remove_newrcu(void * data)
 	objp = lookup(param->p_id);
 	if (objp == NULL) {
 #ifdef ENABLE_LOG
-		printk(KERN_INFO "REMOVE_RCU id = %d | not found", param->p_id);
+		printk(KERN_INFO "REMOVE_NEWRCU id = %d | not found", param->p_id);
 #endif
 		mutex_unlock(&global_mutex);
 		return 0;
 	}
 #ifdef ENABLE_LOG
-	printk(KERN_INFO "REMOVE_RCU id = %d | data = %s\n", objp->o_id, objp->o_data);
+	printk(KERN_INFO "REMOVE_NEWRCU id = %d | data = %s\n", objp->o_id, objp->o_data);
 #endif
 	hlist_del_rcu(&objp->o_node);
 	mutex_unlock(&global_mutex);
@@ -426,13 +427,13 @@ static int read_newrcu(void * data)
 	objp = lookup_newrcu(param->p_id);
 	if (objp == NULL) {
 #ifdef ENABLE_LOG
-		printk(KERN_INFO "READ_RCU id = %d | not found\n", param->p_id);
+		printk(KERN_INFO "READ_NEWRCU id = %d | not found\n", param->p_id);
 #endif
 		return 0;
 	}
 	rwobject(objp);
 #ifdef ENABLE_LOG
-	printk(KERN_INFO "READ_RCU id = %d | data = %s\n", objp->o_id, objp->o_data);
+	printk(KERN_INFO "READ_NEWRCU id = %d | data = %s\n", objp->o_id, objp->o_data);
 #endif
 	spin_unlock(&objp->o_lock);
 	
@@ -448,13 +449,13 @@ static int write_newrcu(void * data)
 	objp = lookup_newrcu(param->p_id);
 	if (objp == NULL) {
 #ifdef ENABLE_LOG
-		printk(KERN_INFO "WRITE_RCU id = %d | not found\n", param->p_id);
+		printk(KERN_INFO "WRITE_NEWRCU id = %d | not found\n", param->p_id);
 #endif
 		return 0;
 	}
 	rwobject(objp);
 #ifdef ENABLE_LOG
-	printk(KERN_INFO "WRITE_RCU id = %d | data = %s\n", objp->o_id, objp->o_data);
+	printk(KERN_INFO "WRITE_NEWRCU id = %d | data = %s\n", objp->o_id, objp->o_data);
 #endif
 	spin_unlock(&objp->o_lock);
 	
@@ -475,7 +476,7 @@ static rcut_funcs_t nolock = {
 	insert_nolock,
 	remove_nolock,
 	read_nolock,
-	write_nolock,,
+	write_nolock,
 };
 static rcut_funcs_t rculock = {
 	insert_rcu,
@@ -540,7 +541,8 @@ static int manager_entry(void *data)
 			funcs->read(&param);
 	
 		} else if (n <= FUNC_PROB[3]) {
-			printk(KERN_ALERT "FATAL\n");
+			param.p_id = id;
+			funcs->write(&param);
 	
 		} else {
 			printk(KERN_ALERT "FATAL\n");
