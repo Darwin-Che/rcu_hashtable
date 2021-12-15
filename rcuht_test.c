@@ -19,7 +19,7 @@
 
 MODULE_LICENSE("GPL");
 
-#define ENABLE_LOG 
+//#define ENABLE_LOG 
 
 #define NUM_DATA 128
 typedef struct rcut_object {
@@ -52,7 +52,7 @@ typedef struct rcut_param {
 	char p_data[NUM_DATA];
 } rcut_param_t;
 
-static const unsigned FUNC_PROB[] = {12, 25, 140, 255}; // <= the number will match the case
+static const unsigned FUNC_PROB[] = {12, 25, 255, 255}; // <= the number will match the case
 typedef struct rcut_funcs {
 	int (*insert)(void *);
 	int (*remove)(void *);
@@ -526,7 +526,7 @@ static int manager_entry(void *data)
 		id = 0;
 		get_random_bytes(&id, 4);
 		id &= (1 << input_hllen) - 1;
-		id = 0;
+//		id = 0;
 		if (n <= FUNC_PROB[0]) {
 			param.p_id = id;
 			strcpy(param.p_data, "p_data_inserted");
