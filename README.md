@@ -41,17 +41,33 @@ The simplest approach to concurrency is to use the global_mutex to protect every
 
 The direct application of RCU would categorize "read an object" as the reader, and the rest three operations as the updaters. 
 
-```
-
-```
-
 ### Partial RCU
 
 The proposed "partial RCU" hash table would use RCU for the hash lists and the per-object spinlock for object protection. The main reason for adding the complexity is now both "read an object" and "update an object" are RCU readers. 
 
-Because RCU doesn't allow multiple writers to execute in parallel, if updates to the objects are frequent but are to different objects, then this design will unburden the global mutex and improve the concurrent performance. 
+Because RCU doesn't allow multiple writers to execute in parallel, if updates to the objects are frequent but on different objects, then this design will unburden the global mutex and improve the concurrent performance. 
 
-In a hash table where parallel access to the same element is rare, the spinlock won't be a possible contention target. 
+In addition, in a hash table where parallel access to the same element is rare, the spinlock won't be a contention target. 
+
+## Experiment
+
+The experiment is carried out in a kernel module (`rcuht_test.c`) on Ubuntu Server 20.04 running in VMware with 10 cores of Intel i9-9880H. 
+
+The four graphs represent the configurations of average hash list length (2^13, 2^15) and read/write operation time (0, 500 usec). 
+
+First, run it with 5% insert, 5% remove, 90% read, no write.
+
+![Test result 1](data/0_write.png)
+
+Then, run it with 5% insert, 5% remove, 45% read, 45% write.
+
+![Test result 2](data/45_write.png)
+
+We can see that partial RCU maintains the high performance even though the per-object write operations are dense. The simple RCU instead shows a significant drop. Also the overhead of partial RCU is also negligible. 
+
+## Conclusion
+
+Both RCU implementations have good concurrent performance when the operations are read-only: each thread's processing time is hardly affected by the number of parallel accesses. But if per-object update is frequent, partial RCU is significantly better than  simple RCU. 
 
 
 ## Reference
