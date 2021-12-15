@@ -73,8 +73,13 @@ Both RCU implementations have good concurrent performance when the operations ar
 ## Reference
 
 https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/?h=v5.15-rc6
+
 http://www2.rdrop.com/users/paulmck/RCU/whatisRCU.html
+
 https://lwn.net/Articles/263285/
+
 http://www.rdrop.com/users/paulmck/rclock/rcu.2002.07.08.pdf
+
 http://lwn.net/Articles/262464/
+
 https://www.kernel.org/doc/Documentation/RCU/whatisRCU.txt
